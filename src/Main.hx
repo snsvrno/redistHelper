@@ -1,5 +1,13 @@
 import neko.Lib;
 
+enum Target {
+	Win64; Win32;
+	Mac;
+	Linux;
+	Neko;
+	Swf;
+}
+
 typedef RuntimeFile = {
 	var lib: Null<String>;
 	var f: String;
@@ -13,6 +21,10 @@ typedef ExtraCopiedFile = {
 }
 
 class Main {
+
+	/*** location of all the files required to build a package. */
+	inline static private var REDISTFILES : String = "redistFiles";
+
 	static var NEKO_RUNTIME_FILES_WIN : Array<RuntimeFile> = [
 		{ lib:null, f:"neko.lib" },
 
@@ -30,6 +42,22 @@ class Main {
 		{ lib:null, f:"std.ndll" },
 		{ lib:null, f:"ui.ndll" },
 		{ lib:null, f:"zlib.ndll" },
+	];
+
+	static var HL_RUNTIME_FILES_LINUX : Array<RuntimeFile> = [
+		{ lib:null, f:"hl" },
+		{ lib:null, f:"run", executableFormat:"$" }, // script to force relative lookup of libraries and assets
+
+		{ lib:null, f:"fmt.hdll" },
+		{ lib:null, f:"ssl.hdll" },
+		{ lib:null, f:"mysql.hdll" },
+		{ lib:null, f:"libhl.so" },
+
+		{ lib:"heaps", f:"openal.hdll" },
+		{ lib:"heaps", f:"ui.hdll" },
+		{ lib:"heaps", f:"uv.hdll" },
+
+		{ lib:"hlsdl", f:"sdl.hdll" },
 	];
 
 	static var HL_RUNTIME_FILES_WIN : Array<RuntimeFile> = [
@@ -53,23 +81,25 @@ class Main {
 		{ lib:"hldx", f:"directx.hdll" },
 		{ lib:"hldx", f:"d3dcompiler_47.dll" },
 	];
+
 	static var HL_RUNTIME_FILES_MAC : Array<RuntimeFile> = [
-		{ lib:null, f:"redistFiles/mac/hl", executableFormat:"$" },
-		{ lib:null, f:"redistFiles/mac/libhl.dylib" },
-		{ lib:null, f:"redistFiles/mac/libpng16.16.dylib" }, // fmt
-		{ lib:null, f:"redistFiles/mac/libvorbis.0.dylib" }, // fmt
-		{ lib:null, f:"redistFiles/mac/libvorbisfile.3.dylib" }, // fmt
-		{ lib:null, f:"redistFiles/mac/libmbedtls.10.dylib" }, // SSL
+		{ lib:null, f:"hl", executableFormat:"$" },
+		{ lib:null, f:"libhl.dylib" },
+		{ lib:null, f:"libpng16.16.dylib" }, // fmt
+		{ lib:null, f:"libvorbis.0.dylib" }, // fmt
+		{ lib:null, f:"libvorbisfile.3.dylib" }, // fmt
+		{ lib:null, f:"libmbedtls.10.dylib" }, // SSL
 
-		{ lib:"heaps", f:"redistFiles/mac/libuv.1.dylib" },
-		{ lib:"heaps", f:"redistFiles/mac/libopenal.1.dylib" },
+		{ lib:"heaps", f:"libuv.1.dylib" },
+		{ lib:"heaps", f:"libopenal.1.dylib" },
 
-		{ lib:"hlsdl", f:"redistFiles/mac/libSDL2-2.0.0.dylib" },
+		{ lib:"hlsdl", f:"libSDL2-2.0.0.dylib" },
 	];
 
 	static var SWF_RUNTIME_FILES_WIN : Array<RuntimeFile> = [
-		{ lib:null, f:"redistFiles/flash/win_flashplayer_32_sa.exe", executableFormat:"flashPlayer.bin" },
+		{ lib:null, f:"win_flashplayer_32_sa.exe", executableFormat:"flashPlayer.bin" },
 	];
+
 	static var SINGLE_PARAMETERS = [
 		"-zip" => true,
 		"-h" => true,
@@ -80,7 +110,6 @@ class Main {
 		"-hl32" => true,
 	];
 
-	// static var NEW_LINE = "\n";
 	static var NEW_LINES = [ "\n", "\r" ];
 
 	static var redistHelperDir = "";
@@ -197,7 +226,7 @@ class Main {
 				Lib.println("Building "+hxml+"...");
 				compile(hxml);
 
-				function makeHl(hlDir:String, files:Array<RuntimeFile>, use32bits:Bool) {
+				function makeHl(hlDir:String, files:Array<RuntimeFile>, target:Target) {
 					Lib.println("Packaging "+hlDir+"...");
 					initRedistDir(hlDir, extraFiles);
 
@@ -205,7 +234,7 @@ class Main {
 					createDirectory(hlDir);
 
 					// Runtimes
-					copyRuntimeFiles(hxml, "HL", hlDir, files, use32bits);
+					copyRuntimeFiles(hxml, "HL", hlDir, files, target);
 
 					// Copy HL bin file
 					var out = getHxmlOutput(hxml,"-hl");
@@ -217,32 +246,37 @@ class Main {
 				// Package HL
 				if( directX ) {
 					// DirectX 64bits
-					makeHl(baseRedistDir+"/directx/"+projectName, HL_RUNTIME_FILES_WIN, false);
+					makeHl(baseRedistDir+"/directx/"+projectName, HL_RUNTIME_FILES_WIN, Win64);
 					if( zipping )
 						zipFolder( '$baseRedistDir/${projectName}_directx.zip', baseRedistDir+"/directx");
 
 					// DirectX 32bits
 					if( hasParameter("-hl32") ) {
-						makeHl(baseRedistDir+"/directx32/"+projectName, HL_RUNTIME_FILES_WIN, true); // directX 32 bits
+						makeHl(baseRedistDir+"/directx32/"+projectName, HL_RUNTIME_FILES_WIN, Win32); // directX 32 bits
 						if( zipping )
 							zipFolder( '$baseRedistDir/${projectName}_directx32.zip', baseRedistDir+"/directx32");
 					}
 				}
 				else {
 					// SDL Windows 64bits
-					makeHl(baseRedistDir+"/opengl_win/"+projectName, HL_RUNTIME_FILES_WIN, false);
+					makeHl(baseRedistDir+"/opengl_win/"+projectName, HL_RUNTIME_FILES_WIN, Win64);
 					if( zipping )
 						zipFolder( '$baseRedistDir/${projectName}_opengl_win.zip', baseRedistDir+"/opengl_win/");
 
 					// SDL Windows 32bits
 					if( hasParameter("-hl32") ) {
-						makeHl(baseRedistDir+"/opengl_win32/"+projectName, HL_RUNTIME_FILES_WIN, true);
+						makeHl(baseRedistDir+"/opengl_win32/"+projectName, HL_RUNTIME_FILES_WIN, Win32);
 						if( zipping )
 							zipFolder( '$baseRedistDir/${projectName}_opengl_win32.zip', baseRedistDir+"/opengl_win32/");
 					}
 
+					// SDL Linux
+					makeHl(baseRedistDir+"/opengl_linux/"+projectName, HL_RUNTIME_FILES_LINUX, Linux);
+					if( zipping )
+						zipFolder( '$baseRedistDir/${projectName}_opengl_linux.zip', baseRedistDir+"/opengl_linux/");
+
 					// SDL Mac
-					makeHl(baseRedistDir+"/opengl_mac/"+projectName, HL_RUNTIME_FILES_MAC, false);
+					makeHl(baseRedistDir+"/opengl_mac/"+projectName, HL_RUNTIME_FILES_MAC, Mac);
 					if( zipping )
 						zipFolder( '$baseRedistDir/${projectName}_opengl_mac.zip', baseRedistDir+"/opengl_mac/");
 				}
@@ -264,7 +298,7 @@ class Main {
 
 				// Create HTML
 				Lib.println("Creating HTML...");
-				var fi = sys.io.File.read(redistHelperDir+"redistFiles/webgl.html");
+				var fi = sys.io.File.read(redistHelperDir+REDISTFILES+"/webgl.html");
 				var html = "";
 				while( !fi.eof() )
 				try { html += fi.readLine()+NEW_LINES[0]; } catch(e:haxe.io.Eof) {}
@@ -297,7 +331,7 @@ class Main {
 				Lib.println("Packaging "+nekoDir+"...");
 				copy(out.full, nekoDir+"/"+projectName+".exe");
 
-				copyRuntimeFiles(hxml, "Neko", nekoDir, NEKO_RUNTIME_FILES_WIN, false);
+				copyRuntimeFiles(hxml, "Neko", nekoDir, NEKO_RUNTIME_FILES_WIN, Neko);
 
 				copyExtraFilesIn(extraFiles, nekoDir);
 				if( zipping )
@@ -317,7 +351,7 @@ class Main {
 				Lib.println("Packaging "+swfDir+"...");
 				var out = getHxmlOutput(hxml,"-swf");
 				copy(out, swfDir+"/"+projectName+".swf");
-				copyRuntimeFiles(hxml, "SWF", swfDir, SWF_RUNTIME_FILES_WIN, false);
+				copyRuntimeFiles(hxml, "SWF", swfDir, SWF_RUNTIME_FILES_WIN, Swf);
 
 				var script = [
 					'@echo off',
@@ -346,12 +380,12 @@ class Main {
 			error('Compilation failed (error code $code)');
 	}
 
-	static function copyRuntimeFiles(hxmlPath:String, targetName:String, targetDir:String, runTimeFiles:Array<RuntimeFile>, useHl32bits:Bool) {
+	static function copyRuntimeFiles(hxmlPath:String, targetName:String, targetDir:String, runTimeFiles:Array<RuntimeFile>, target:Target) {
 		if( verbose )
 			Lib.println("Copying "+targetName+" runtime files to "+targetDir+"... ");
 		for( r in runTimeFiles ) {
 			if( r.lib==null || hxmlRequiresLib(hxmlPath, r.lib) ) {
-				var from = findFile(r.f, useHl32bits);
+				var from = findFile(r.f, target);
 				if( verbose )
 					Lib.println(" -> "+r.f + ( r.lib==null?"" : " [required by -lib "+r.lib+"] (source: "+from+")") );
 				var toFile = r.executableFormat!=null ? StringTools.replace(r.executableFormat, "$", projectName) : r.f.indexOf("/")<0 ? r.f : r.f.substr(r.f.lastIndexOf("/")+1);
@@ -456,34 +490,25 @@ class Main {
 		sys.io.File.saveBytes(zipPath, out.getBytes());
 	}
 
-	static function findFile(f:String, useHl32bits:Bool) {
-		if( sys.FileSystem.exists(redistHelperDir+f) )
-			return redistHelperDir+f;
+	static function findFile(f:String, target:Target) {
 
-		// Locate haxe tools
-		var haxeTools = ["haxe.exe", "hl.exe", "neko.exe" ];
 		var paths = [];
-		for(path in Sys.getEnv("PATH").split(";")) {
-			path = cleanUpDirPath(path);
-			for(f in haxeTools)
-				if( sys.FileSystem.exists(path+f) ) {
-					paths.push(path);
-					break;
-				}
+
+		switch( target ) {
+			case Win64: paths.push(redistHelperDir+REDISTFILES+"/hl64win/");
+			case Win32: paths.push(redistHelperDir+REDISTFILES+"/hl32win/");
+			case Linux: paths.push(redistHelperDir+REDISTFILES+"/hl64nix/");
+			case Mac: paths.push(redistHelperDir+REDISTFILES+"/hl64mac/");
+			case Swf: paths.push(redistHelperDir+REDISTFILES+"/flash/");
+			case Neko: paths.push(redistHelperDir+REDISTFILES+"/neko/");
 		}
+		
+		paths.push(redistHelperDir+REDISTFILES+"/");
 
-		if( useHl32bits ) {
-			// Prioritize 32bits files over 64bits
-			paths.insert(0, redistHelperDir+"redistFiles/hl32/");  // HL
-		}
-		paths.push(redistHelperDir+"redistFiles/");
-
-		if( paths.length<=0 )
-			throw "Haxe tools not found ("+haxeTools.join(", ")+") in PATH!";
-
-		for(path in paths)
+		for( path in paths )
 			if( sys.FileSystem.exists(path+f) )
 				return path+f;
+
 
 		throw "File not found: "+f+", lookup paths="+paths.join(", ");
 	}
@@ -517,7 +542,7 @@ class Main {
 			// avoid deleting unexpected files
 			directoryContainsOnly(
 				d,
-				["exe","dat","dll","hdll","ndll","js","swf","html","dylib","zip","lib","bin","bat"],
+				["exe","dat","dll","hdll","ndll","js","swf","html","dylib","zip","lib","bin","bat","so"],
 				allExtraFiles
 			);
 			dn.FileTools.deleteDirectoryRec(d);
