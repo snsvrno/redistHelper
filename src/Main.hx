@@ -80,7 +80,8 @@ class Main {
 		"-hl32" => true,
 	];
 
-	static var NEW_LINE = "\n";
+	// static var NEW_LINE = "\n";
+	static var NEW_LINES = [ "\n", "\r" ];
 
 	static var redistHelperDir = "";
 	static var projectDir = "";
@@ -266,7 +267,7 @@ class Main {
 				var fi = sys.io.File.read(redistHelperDir+"redistFiles/webgl.html");
 				var html = "";
 				while( !fi.eof() )
-				try { html += fi.readLine()+NEW_LINE; } catch(e:haxe.io.Eof) {}
+				try { html += fi.readLine()+NEW_LINES[0]; } catch(e:haxe.io.Eof) {}
 				html = StringTools.replace(html, "%project%", projectName);
 				html = StringTools.replace(html, "%js%", "client.js");
 				var fo = sys.io.File.write(jsDir+"/index.html", false);
@@ -527,9 +528,29 @@ class Main {
 		}
 	}
 
+	static function splitLines(text:String) : Array<String> {
+		var lines : Array<String> = [ ];
+
+		var line = "";
+		for ( i in 0 ... text.length ) {
+			var char = text.charAt(i);
+			var lineEnding = false;
+			for ( le in NEW_LINES ) if ( char == le ) lineEnding = true;
+			if ( lineEnding && line.length > 0) { 
+				lines.push(line);
+				line = "";
+			} else {
+				line += char;
+			}
+		}
+
+		if ( line.length > 0 ) lines.push(line);
+
+		return lines;
+	}
 
 	static function getFullHxml(f:String) {
-		var lines = sys.io.File.read(f, false).readAll().toString().split(NEW_LINE);
+		var lines = splitLines(sys.io.File.read(f, false).readAll().toString());
 		var i = 0;
 		while( i<lines.length ) {
 
@@ -543,7 +564,7 @@ class Main {
 			i++;
 		}
 
-		return lines.join(NEW_LINE);
+		return lines.join(NEW_LINES[0]);
 	}
 
 
@@ -613,7 +634,7 @@ class Main {
 
 		try {
 			var content = getFullHxml(hxmlPath);
-			for( line in content.split(NEW_LINE) ) {
+			for( line in splitLines(content) ) {
 				if( line.indexOf(lookFor)>=0 )
 					return StringTools.trim( line.split(lookFor)[1] );
 			}
@@ -636,7 +657,7 @@ class Main {
 			var content = fi.readAll().toString();
 			if( content.indexOf("-lib "+libId)>=0 )
 				return true;
-			for(line in content.split(NEW_LINE))
+			for(line in splitLines(content))
 				if( line.indexOf(".hxml")>=0 )
 					return hxmlRequiresLib(line, libId);
 		} catch(e:Dynamic) {
